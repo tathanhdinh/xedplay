@@ -5,5 +5,8 @@ authors = ["TA Thanh Dinh <tathanhdinh@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+# xed-sys = { git = "https://github.com/tathanhdinh/xed-sys.git" }
 xed-sys = { path = "../xed-sys" }
-structopt = "*"
+structopt = "0.2.10"
+tabwriter = "1.1.0"
+# quicli = { git = "https://github.com/killercup/quicli.git" }
