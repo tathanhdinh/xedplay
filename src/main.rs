@@ -1,9 +1,10 @@
 #![allow(unused, dead_code)]
-extern crate structopt;
-extern crate tabwriter;
-extern crate xed_sys as llb; // low-level binding xed
+// extern crate structopt;
+// extern crate tabwriter;
+// extern crate xed_sys as llb; // low-level binding xed
 
 use std::{
+    collections::HashMap,
     ffi::{CStr, CString},
     io::{self, Write},
     mem,
@@ -12,6 +13,80 @@ use std::{
 };
 use structopt::StructOpt;
 use tabwriter::TabWriter;
+use xed_sys as llb;
+
+use lazy_static::lazy_static;
+use maplit::hashmap;
+
+use crate::llb::{xed_iclass_enum_t::*, xed_iform_enum_t::*};
+
+lazy_static! {
+    static ref xed_nolock_iform_map: HashMap<llb::xed_iform_enum_t, llb::xed_iform_enum_t> = hashmap! {
+        XED_IFORM_ADC_LOCK_MEMb_IMMb_80r2 => XED_IFORM_ADC_MEMb_IMMb_80r2,
+        XED_IFORM_ADC_LOCK_MEMv_IMMz => XED_IFORM_ADC_MEMv_IMMz,
+        XED_IFORM_ADC_LOCK_MEMb_IMMb_82r2 => XED_IFORM_ADC_MEMb_IMMb_82r2,
+        XED_IFORM_ADC_LOCK_MEMv_IMMb => XED_IFORM_ADC_MEMv_IMMb,
+        XED_IFORM_ADC_LOCK_MEMb_GPR8 => XED_IFORM_ADC_MEMb_GPR8,
+        XED_IFORM_ADC_LOCK_MEMv_GPRv => XED_IFORM_ADC_MEMv_GPRv,
+        XED_IFORM_DEC_LOCK_MEMb => XED_IFORM_DEC_MEMb,
+        XED_IFORM_DEC_LOCK_MEMv => XED_IFORM_DEC_MEMv,
+        XED_IFORM_NOT_LOCK_MEMb => XED_IFORM_NOT_MEMb,
+        XED_IFORM_NOT_LOCK_MEMv => XED_IFORM_NOT_MEMv,
+        XED_IFORM_SUB_LOCK_MEMb_IMMb_80r5 => XED_IFORM_SUB_MEMb_IMMb_80r5,
+        XED_IFORM_SUB_LOCK_MEMv_IMMz => XED_IFORM_SUB_MEMv_IMMz,
+        XED_IFORM_SUB_LOCK_MEMb_IMMb_82r5 => XED_IFORM_SUB_MEMb_IMMb_82r5,
+        XED_IFORM_SUB_LOCK_MEMv_IMMb => XED_IFORM_SUB_MEMv_IMMb,
+        XED_IFORM_SUB_LOCK_MEMb_GPR8 => XED_IFORM_SUB_MEMb_GPR8,
+        XED_IFORM_SUB_LOCK_MEMv_GPRv => XED_IFORM_SUB_MEMv_GPRv,
+        XED_IFORM_BTC_LOCK_MEMv_IMMb => XED_IFORM_BTC_MEMv_IMMb,
+        XED_IFORM_BTC_LOCK_MEMv_GPRv => XED_IFORM_BTC_MEMv_GPRv,
+        XED_IFORM_AND_LOCK_MEMb_IMMb_80r4 => XED_IFORM_AND_MEMb_IMMb_80r4,
+        XED_IFORM_AND_LOCK_MEMv_IMMz => XED_IFORM_AND_MEMv_IMMz,
+        XED_IFORM_AND_LOCK_MEMb_IMMb_82r4 => XED_IFORM_AND_MEMb_IMMb_82r4,
+        XED_IFORM_AND_LOCK_MEMv_IMMb => XED_IFORM_AND_MEMv_IMMb,
+        XED_IFORM_AND_LOCK_MEMb_GPR8 => XED_IFORM_AND_MEMb_GPR8,
+        XED_IFORM_AND_LOCK_MEMv_GPRv => XED_IFORM_AND_MEMv_GPRv,
+        XED_IFORM_CMPXCHG_LOCK_MEMb_GPR8 => XED_IFORM_CMPXCHG_MEMb_GPR8,
+        XED_IFORM_CMPXCHG_LOCK_MEMv_GPRv => XED_IFORM_CMPXCHG_MEMv_GPRv,
+        XED_IFORM_INC_LOCK_MEMb => XED_IFORM_INC_MEMb,
+        XED_IFORM_INC_LOCK_MEMv => XED_IFORM_INC_MEMv,
+        XED_IFORM_OR_LOCK_MEMb_IMMb_80r1 => XED_IFORM_OR_MEMb_IMMb_80r1,
+        XED_IFORM_OR_LOCK_MEMv_IMMz => XED_IFORM_OR_MEMv_IMMz,
+        XED_IFORM_OR_LOCK_MEMb_IMMb_82r1 => XED_IFORM_OR_MEMb_IMMb_82r1,
+        XED_IFORM_OR_LOCK_MEMv_IMMb => XED_IFORM_OR_MEMv_IMMb,
+        XED_IFORM_OR_LOCK_MEMb_GPR8 => XED_IFORM_OR_MEMb_GPR8,
+        XED_IFORM_OR_LOCK_MEMv_GPRv => XED_IFORM_OR_MEMv_GPRv,
+        XED_IFORM_XADD_LOCK_MEMb_GPR8 => XED_IFORM_XADD_MEMb_GPR8,
+        XED_IFORM_XADD_LOCK_MEMv_GPRv => XED_IFORM_XADD_MEMv_GPRv,
+        XED_IFORM_ADD_LOCK_MEMb_IMMb_80r0 => XED_IFORM_ADD_MEMb_IMMb_80r0,
+        XED_IFORM_ADD_LOCK_MEMv_IMMz => XED_IFORM_ADD_MEMv_IMMz,
+        XED_IFORM_ADD_LOCK_MEMb_IMMb_82r0 => XED_IFORM_ADD_MEMb_IMMb_82r0,
+        XED_IFORM_ADD_LOCK_MEMv_IMMb => XED_IFORM_ADD_MEMv_IMMb,
+        XED_IFORM_ADD_LOCK_MEMb_GPR8 => XED_IFORM_ADD_MEMb_GPR8,
+        XED_IFORM_ADD_LOCK_MEMv_GPRv => XED_IFORM_ADD_MEMv_GPRv,
+        XED_IFORM_SBB_LOCK_MEMb_IMMb_80r3 => XED_IFORM_SBB_MEMb_IMMb_80r3,
+        XED_IFORM_SBB_LOCK_MEMv_IMMz => XED_IFORM_SBB_MEMv_IMMz,
+        XED_IFORM_SBB_LOCK_MEMb_IMMb_82r3 => XED_IFORM_SBB_MEMb_IMMb_82r3,
+        XED_IFORM_SBB_LOCK_MEMv_IMMb => XED_IFORM_SBB_MEMv_IMMb,
+        XED_IFORM_SBB_LOCK_MEMb_GPR8 => XED_IFORM_SBB_MEMb_GPR8,
+        XED_IFORM_SBB_LOCK_MEMv_GPRv => XED_IFORM_SBB_MEMv_GPRv,
+        XED_IFORM_BTS_LOCK_MEMv_IMMb => XED_IFORM_BTS_MEMv_IMMb,
+        XED_IFORM_BTS_LOCK_MEMv_GPRv => XED_IFORM_BTS_MEMv_GPRv,
+        XED_IFORM_XOR_LOCK_MEMb_IMMb_80r6 => XED_IFORM_XOR_MEMb_IMMb_80r6,
+        XED_IFORM_XOR_LOCK_MEMv_IMMz => XED_IFORM_XOR_MEMv_IMMz,
+        XED_IFORM_XOR_LOCK_MEMb_IMMb_82r6 => XED_IFORM_XOR_MEMb_IMMb_82r6,
+        XED_IFORM_XOR_LOCK_MEMv_IMMb => XED_IFORM_XOR_MEMv_IMMb,
+        XED_IFORM_XOR_LOCK_MEMb_GPR8 => XED_IFORM_XOR_MEMb_GPR8,
+        XED_IFORM_XOR_LOCK_MEMv_GPRv => XED_IFORM_XOR_MEMv_GPRv,
+        XED_IFORM_BTR_LOCK_MEMv_IMMb => XED_IFORM_BTR_MEMv_IMMb,
+        XED_IFORM_BTR_LOCK_MEMv_GPRv => XED_IFORM_BTR_MEMv_GPRv,
+        XED_IFORM_CMPXCHG8B_LOCK_MEMq => XED_IFORM_CMPXCHG8B_MEMq,
+        XED_IFORM_CMPXCHG8B_LOCK_MEMq => XED_IFORM_CMPXCHG8B_MEMq,
+        XED_IFORM_CMPXCHG16B_LOCK_MEMdq => XED_IFORM_CMPXCHG16B_MEMdq,
+        XED_IFORM_NEG_LOCK_MEMb => XED_IFORM_NEG_MEMb,
+        XED_IFORM_NEG_LOCK_MEMv => XED_IFORM_NEG_MEMv,
+    };
+}
 
 // use self::llb::*;
 
@@ -364,7 +439,8 @@ fn parse_assembly(hex_asm: &str) -> Vec<u8> {
             b'a'...b'f' => Some(b - b'a' + 10),
             b'A'...b'F' => Some(b - b'A' + 10),
             _ => None,
-        }).fuse();
+        })
+        .fuse();
 
     let mut bytes = vec![];
     while let (Some(h), Some(l)) = (hex_bytes.next(), hex_bytes.next()) {
@@ -485,6 +561,9 @@ fn main() {
 
         match decode(&bytes, mode) {
             Ok(ref inst) => {
+                let byte_count = unsafe { llb::xed_decoded_inst_get_length(inst) };
+                writeln!(tabbed_stdout, "byte count:\t{}", byte_count);
+
                 writeln!(
                     tabbed_stdout,
                     "disassembly:\t{}",
@@ -499,11 +578,8 @@ fn main() {
                     llb::iclass_str(llb::xed_inst_iclass(inst_base))
                 );
 
-                writeln!(
-                    tabbed_stdout,
-                    "iform:\t{}",
-                    llb::iform_str(llb::xed_inst_iform_enum(inst_base))
-                );
+                let iform = llb::xed_inst_iform_enum(inst_base);
+                writeln!(tabbed_stdout, "iform:\t{}", llb::iform_str(iform));
 
                 writeln!(
                     tabbed_stdout,
@@ -531,7 +607,7 @@ fn main() {
 
                 writeln!(
                     tabbed_stdout,
-                    "uses rflag:\t{}",
+                    "uses rflags:\t{}",
                     if uses_rflags(&inst) { "yes" } else { "no" }
                 );
 
@@ -545,6 +621,49 @@ fn main() {
                 }
                 let attrs_string = attrs.join(" ");
                 writeln!(tabbed_stdout, "attributes:\t{}", attrs_string);
+
+                let legacy_prefixes_count =
+                    unsafe { llb::xed_decoded_inst_get_nprefixes(ref_to_raw_pointer!(inst)) };
+                writeln!(tabbed_stdout, "legacy prefixes:\t{}", legacy_prefixes_count);
+
+                let remill_function_name = {
+                    let has_lock_prefix = unsafe { llb::xed_operand_values_has_lock_prefix(inst) };
+                    let iform = if has_lock_prefix != 0 {
+                        *xed_nolock_iform_map.get(&iform).unwrap()
+                    } else {
+                        iform
+                    };
+
+                    let mut func_name = format!("{}", llb::iform_str(iform));
+
+                    if scalable(inst) {
+                        func_name = format!("{}_{}", func_name, unsafe {
+                            llb::xed_decoded_inst_get_operand_width(inst)
+                        });
+                    }
+
+                    func_name = match iform {
+                        XED_IFORM_MOV_SEG_MEMw
+                        | XED_IFORM_MOV_SEG_GPR16
+                        | XED_IFORM_MOV_CR_CR_GPR32
+                        | XED_IFORM_MOV_CR_CR_GPR64 => format!(
+                            "{}_{}",
+                            func_name,
+                            llb::reg_str(unsafe {
+                                llb::xed_decoded_inst_get_reg(
+                                    inst,
+                                    llb::xed_operand_enum_t::XED_OPERAND_REG0,
+                                )
+                            })
+                        ),
+
+                        _ => func_name,
+                    };
+
+                    func_name
+                };
+
+                writeln!(tabbed_stdout, "remill name:\t{}", remill_function_name);
 
                 // operands
                 let operand_count = llb::xed_inst_noperands(inst_base);

@@ -10,3 +10,5 @@ xed-sys = { path = "../xed-sys" }
 structopt = "0.2.10"
 tabwriter = "1.1.0"
 # quicli = { git = "https://github.com/killercup/quicli.git" }
+lazy_static = "1.1.0"
+maplit = "1.0.1"
