@@ -117,7 +117,7 @@ enum MachineState {
 // ref: xed-examples-utils.c
 
 pub(crate) fn initialize() {
-    unsafe { llb::xed_tables_init() }
+    llb::tables_init()
 }
 
 // for xed_decoded_inst_t
@@ -140,22 +140,24 @@ pub(crate) fn decode(
     let mut decoded_inst: llb::xed_decoded_inst_t = unsafe { mem::uninitialized() };
     let decoded_inst_ptr = &mut decoded_inst;
 
-    unsafe {
-        llb::xed_decoded_inst_zero_set_mode(
-            // &mut decoded_inst as *mut xed_decoded_inst_t,
-            ref_to_mut_raw_pointer!(decoded_inst_ptr),
-            &xed_mode as *const llb::xed_state_t,
-        )
-    };
+    // unsafe {
+    //     llb::xed_decoded_inst_zero_set_mode(
+    //         // &mut decoded_inst as *mut xed_decoded_inst_t,
+    //         ref_to_mut_raw_pointer!(decoded_inst_ptr),
+    //         &xed_mode as *const llb::xed_state_t,
+    //     )
+    // };
+    llb::decoded_inst_zero_set_mode(&mut decoded_inst, &xed_mode);
 
-    let decoding_error = unsafe {
-        llb::xed_decode(
-            // &mut decoded_inst as *mut xed_decoded_inst_t,
-            ref_to_mut_raw_pointer!(decoded_inst_ptr),
-            bytes.as_ptr(),
-            bytes.len() as u32,
-        )
-    };
+    // let decoding_error = unsafe {
+    //     llb::xed_decode(
+    //         // &mut decoded_inst as *mut xed_decoded_inst_t,
+    //         ref_to_mut_raw_pointer!(decoded_inst_ptr),
+    //         bytes.as_ptr(),
+    //         bytes.len() as u32,
+    //     )
+    // };
+    let decoding_error = llb::decode(&mut decoded_inst, bytes);
 
     match decoding_error {
         llb::xed_error_enum_t::XED_ERROR_NONE => Ok(decoded_inst),
@@ -175,18 +177,13 @@ pub(crate) fn valid(inst: &llb::xed_decoded_inst_t) -> bool {
 }
 
 pub(crate) fn len(inst: &llb::xed_decoded_inst_t) -> u8 {
-    // let inst = inst as *const xed_decoded_inst_t;
     let inst: *const llb::xed_decoded_inst_t = ref_to_raw_pointer!(inst);
     unsafe { (*inst)._decoded_length as u8 }
 }
 
 pub(crate) fn scalable(inst: &llb::xed_decoded_inst_t) -> bool {
-    let inst = llb::xed_decoded_inst_inst(inst);
-    let inst = ref_to_raw_pointer!(inst);
-    let sc = unsafe {
-        llb::xed_inst_get_attribute(inst, llb::xed_attribute_enum_t::XED_ATTRIBUTE_SCALABLE)
-    };
-    sc != 0
+    let inst = llb::decoded_inst_inst(inst).unwrap();
+    llb::inst_get_attribute(inst, llb::xed_attribute_enum_t::XED_ATTRIBUTE_SCALABLE)
 }
 
 pub(crate) fn dump(inst: &llb::xed_decoded_inst_t) -> String {
@@ -230,43 +227,45 @@ pub(crate) fn disasm(
     }
 }
 
-pub(crate) fn conditonally_write_registers(inst: &llb::xed_decoded_inst_t) -> bool {
-    // let inst = inst as *const xed_decoded_inst_t;
-    let inst = ref_to_raw_pointer!(inst);
-    unsafe { llb::xed_decoded_inst_conditionally_writes_registers(inst) != 0 }
-}
+// pub(crate) fn conditonally_write_registers(inst: &llb::xed_decoded_inst_t) -> bool {
+//     // let inst = inst as *const xed_decoded_inst_t;
+//     let inst = ref_to_raw_pointer!(inst);
+//     unsafe { llb::xed_decoded_inst_conditionally_writes_registers(inst) != 0 }
+// }
 
 pub(crate) fn uses_rflags(inst: &llb::xed_decoded_inst_t) -> bool {
     // let inst = inst as *const xed_decoded_inst_t;
     unsafe { llb::xed_decoded_inst_uses_rflags(ref_to_raw_pointer!(inst)) != 0 }
 }
 
-pub(crate) fn operands<'a>(inst: &'a llb::xed_decoded_inst_t) -> Vec<&'a llb::xed_operand_t> {
-    let inst = llb::xed_decoded_inst_inst(inst);
-    let operand_count = llb::xed_inst_noperands(inst);
+pub(crate) fn operands<'a>(inst: &'a llb::xed_decoded_inst_t) -> Option<Vec<&'a llb::xed_operand_t>> {
+    llb::decoded_inst_inst(inst).map(|inst| {
+        let operand_count = llb::inst_noperands(inst);
 
-    let mut operands = Vec::with_capacity(operand_count as usize);
-    for i in 0..operand_count {
-        let p_operand_i = unsafe { llb::xed_inst_operand(inst, i as u32) };
-        operands.push(raw_pointer_to_ref!(p_operand_i));
-    }
+        let mut operands = Vec::with_capacity(operand_count as usize);
+        for i in 0..operand_count {
+            // let p_operand_i = unsafe { llb::xed_inst_operand(inst, i as u32) };
+            let p_operand_i = llb::inst_operand(inst, i as u32).unwrap();
+            operands.push(raw_pointer_to_ref!(p_operand_i));
+        }
 
-    operands
+        operands
+    })
 }
 
 // for xed_operand_t
-pub(crate) fn is_conditional_write(oprd: &llb::xed_operand_t) -> bool {
-    // let oprd = oprd as *const xed_operand_t;
-    let oprd = ref_to_raw_pointer!(oprd);
-    let cw = unsafe { llb::xed_operand_conditional_write(oprd) };
-    cw != 0
-}
+// pub(crate) fn is_conditional_write(oprd: &llb::xed_operand_t) -> bool {
+//     // let oprd = oprd as *const xed_operand_t;
+//     let oprd = ref_to_raw_pointer!(oprd);
+//     let cw = unsafe { llb::xed_operand_conditional_write(oprd) };
+//     cw != 0
+// }
 
-pub(crate) fn is_conditional_read(oprd: &llb::xed_operand_t) -> bool {
-    let oprd = oprd as *const llb::xed_operand_t;
-    let cw = unsafe { llb::xed_operand_conditional_read(oprd) };
-    cw != 0
-}
+// pub(crate) fn is_conditional_read(oprd: &llb::xed_operand_t) -> bool {
+//     let oprd = oprd as *const llb::xed_operand_t;
+//     let cw = unsafe { llb::xed_operand_conditional_read(oprd) };
+//     cw != 0
+// }
 
 pub(crate) fn instruction_table() -> &'static [llb::xed_inst_t] {
     let base = unsafe { llb::xed_inst_table_base() };
@@ -281,7 +280,7 @@ pub(crate) fn instruction_table() -> &'static [llb::xed_inst_t] {
 
 // xed-ex1.c
 pub(crate) fn has_rep(inst: &llb::xed_inst_t) -> bool {
-    let iform = llb::iform_str(llb::xed_inst_iform_enum(inst));
+    let iform = llb::iform_str(llb::inst_iform_enum(inst));
     iform.starts_with("REP_") || iform.starts_with("REPE_")
     // let iclass = xed_iform_to_iclass(iform);
     // let iclass_wo_rep = unsafe { xed_rep_remove(iclass) };
@@ -289,7 +288,7 @@ pub(crate) fn has_rep(inst: &llb::xed_inst_t) -> bool {
 }
 
 pub(crate) fn has_repne(inst: &llb::xed_inst_t) -> bool {
-    let iform = llb::iform_str(llb::xed_inst_iform_enum(inst));
+    let iform = llb::iform_str(llb::inst_iform_enum(inst));
     iform.starts_with("REPNE_")
 }
 
@@ -305,55 +304,51 @@ pub(crate) fn check_inst(inst: &llb::xed_inst_t) {
         tabbed_stdout,
         "========================================\n\
          iclass:\t{}",
-        llb::iclass_str(llb::xed_inst_iclass(inst))
+        llb::iclass_str(llb::inst_iclass(inst))
     );
 
     writeln!(
         tabbed_stdout,
         "iform:\t{}",
-        llb::iform_str(llb::xed_inst_iform_enum(inst))
+        llb::iform_str(llb::inst_iform_enum(inst))
     );
 
     writeln!(
         tabbed_stdout,
         "category:\t{}",
-        llb::category_str(llb::xed_inst_category(inst))
+        llb::category_str(llb::inst_category(inst))
     );
 
     writeln!(
         tabbed_stdout,
         "extension:\t{}",
-        llb::extension_str(llb::xed_inst_extension(inst))
+        llb::extension_str(llb::inst_extension(inst))
     );
 
     writeln!(
         tabbed_stdout,
         "isa set:\t{}",
-        llb::isa_str(llb::xed_inst_isa_set(inst))
+        llb::isa_str(llb::inst_isa_set(inst))
     );
 
-    let sc = unsafe {
-        llb::xed_inst_get_attribute(inst, llb::xed_attribute_enum_t::XED_ATTRIBUTE_SCALABLE)
-    };
+    let sc = llb::inst_get_attribute(inst, llb::xed_attribute_enum_t::XED_ATTRIBUTE_SCALABLE);
     writeln!(
         tabbed_stdout,
-        "scalable:\t{}",
-        if sc != 0 { "yes" } else { "no" }
+        "scalable:\t{}", sc
     );
 
-    let operand_count = llb::xed_inst_noperands(inst);
+    let operand_count = llb::inst_noperands(inst);
     for i in 0..operand_count {
-        let operand_i = unsafe { llb::xed_inst_operand(ref_to_raw_pointer!(inst), i as u32) };
-        let operand_i: &llb::xed_operand_t = raw_pointer_to_ref!(operand_i);
+        let operand_i = llb::inst_operand(inst, i as u32).unwrap();
 
         // let name = llb::xed_operand_name(operand_i);
-        let name = match llb::xed_operand_type(operand_i) {
+        let name = match llb::operand_type(operand_i) {
             llb::xed_operand_type_enum_t::XED_OPERAND_TYPE_NT_LOOKUP_FN => {
-                llb::nonterminal_str(llb::xed_operand_nonterminal_name(operand_i))
+                llb::nonterminal_str(llb::operand_nonterminal_name(operand_i))
             }
 
             llb::xed_operand_type_enum_t::XED_OPERAND_TYPE_REG => {
-                llb::reg_str(llb::xed_operand_reg(operand_i))
+                llb::reg_str(llb::operand_reg(operand_i))
             }
 
             _ => "unknown",
@@ -361,11 +356,11 @@ pub(crate) fn check_inst(inst: &llb::xed_inst_t) {
         writeln!(
             tabbed_stdout,
             "operand:\t{}\n\tname:\t{}\n\ttype:\t{}\n\tvisibility:\t{}\n\taction:\t{}",
-            llb::operand_name_str(llb::xed_operand_name(operand_i)),
+            llb::operand_name_str(llb::operand_name(operand_i)),
             name,
-            llb::operand_type_str(llb::xed_operand_type(operand_i)),
-            llb::operand_visibility_str(llb::xed_operand_operand_visibility(operand_i)),
-            llb::operand_action_str(llb::xed_operand_rw(operand_i))
+            llb::operand_type_str(llb::operand_type(operand_i)),
+            llb::operand_visibility_str(llb::operand_operand_visibility(operand_i)),
+            llb::operand_action_str(llb::operand_rw(operand_i))
         );
     }
 
@@ -419,11 +414,11 @@ pub(crate) fn encode(inst: &llb::xed_inst_t, state: MachineState) {
     unsafe {
         llb::xed_encoder_request_set_iclass(
             ref_to_mut_raw_pointer!(&mut encoder_request),
-            llb::xed_inst_iclass(inst),
+            llb::inst_iclass(inst),
         );
     }
 
-    let operand_count = llb::xed_inst_noperands(inst);
+    let operand_count = llb::inst_noperands(inst);
     for i in 0..operand_count {
         let operand_i = unsafe { llb::xed_inst_operand(ref_to_raw_pointer!(inst), i as u32) };
         let operand_i: &llb::xed_operand_t = raw_pointer_to_ref!(operand_i);
@@ -561,7 +556,7 @@ fn main() {
 
         match decode(&bytes, mode) {
             Ok(ref inst) => {
-                let byte_count = unsafe { llb::xed_decoded_inst_get_length(inst) };
+                let byte_count = unsafe { llb::decoded_inst_get_length(inst) };
                 writeln!(tabbed_stdout, "byte count:\t{}", byte_count);
 
                 writeln!(
@@ -570,60 +565,60 @@ fn main() {
                     disasm(&inst, llb::xed_syntax_enum_t::XED_SYNTAX_INTEL, 0u64)
                 );
 
-                let inst_base = llb::xed_decoded_inst_inst(&inst);
+                let inst_base = llb::decoded_inst_inst(&inst).unwrap();
 
                 writeln!(
                     tabbed_stdout,
                     "iclass:\t{}",
-                    llb::iclass_str(llb::xed_inst_iclass(inst_base))
+                    llb::iclass_str(llb::inst_iclass(inst_base))
                 );
 
-                let iform = llb::xed_inst_iform_enum(inst_base);
+                let iform = llb::inst_iform_enum(inst_base);
                 writeln!(tabbed_stdout, "iform:\t{}", llb::iform_str(iform));
 
                 writeln!(
                     tabbed_stdout,
                     "category:\t{}",
-                    llb::category_str(llb::xed_inst_category(inst_base))
+                    llb::category_str(llb::inst_category(inst_base))
                 );
 
                 writeln!(
                     tabbed_stdout,
                     "isa extension:\t{}",
-                    llb::extension_str(llb::xed_inst_extension(inst_base))
+                    llb::extension_str(llb::inst_extension(inst_base))
                 );
 
                 writeln!(
                     tabbed_stdout,
                     "isa set:\t{}",
-                    llb::isa_str(llb::xed_inst_isa_set(inst_base))
+                    llb::isa_str(llb::inst_isa_set(inst_base))
                 );
 
                 writeln!(
                     tabbed_stdout,
                     "scalable:\t{}",
-                    if scalable(&inst) { "yes" } else { "no" }
+                    scalable(&inst)
                 );
 
                 writeln!(
                     tabbed_stdout,
                     "uses rflags:\t{}",
-                    if uses_rflags(&inst) { "yes" } else { "no" }
+                    uses_rflags(&inst)
                 );
 
                 let attr_count = unsafe { llb::xed_attribute_max() };
                 let mut attrs = Vec::with_capacity(attr_count as usize);
                 for i in 0..attr_count {
                     let attr = unsafe { llb::xed_attribute(i) };
-                    if 0 != unsafe { llb::xed_inst_get_attribute(inst_base, attr) } {
+                    if llb::inst_get_attribute(inst_base, attr) {
                         attrs.push(llb::attribute_str(attr));
                     }
                 }
                 let attrs_string = attrs.join(" ");
                 writeln!(tabbed_stdout, "attributes:\t{}", attrs_string);
 
-                let legacy_prefixes_count =
-                    unsafe { llb::xed_decoded_inst_get_nprefixes(ref_to_raw_pointer!(inst)) };
+                let legacy_prefixes_count = llb::decoded_inst_get_nprefixes(inst);
+                    // unsafe { llb::xed_decoded_inst_get_nprefixes(ref_to_raw_pointer!(inst)) };
                 writeln!(tabbed_stdout, "legacy prefixes:\t{}", legacy_prefixes_count);
 
                 let remill_function_name = {
@@ -666,24 +661,22 @@ fn main() {
                 writeln!(tabbed_stdout, "remill name:\t{}", remill_function_name);
 
                 // operands
-                let operand_count = llb::xed_inst_noperands(inst_base);
+                let operand_count = llb::inst_noperands(inst_base);
                 for i in 0..operand_count {
-                    let operand_i =
-                        unsafe { llb::xed_inst_operand(ref_to_raw_pointer!(inst_base), i as u32) };
-                    let operand_i: &llb::xed_operand_t = raw_pointer_to_ref!(operand_i);
+                    let operand_i = llb::inst_operand(inst_base, i as u32).unwrap();
 
-                    let opr_name = llb::xed_operand_name(operand_i);
-                    let opr_type = llb::xed_operand_type(operand_i);
-                    let opr_vis = llb::xed_operand_operand_visibility(operand_i);
-                    let opr_act = llb::xed_operand_rw(operand_i);
+                    let opr_name = llb::operand_name(operand_i);
+                    let opr_type = llb::operand_type(operand_i);
+                    let opr_vis = llb::operand_operand_visibility(operand_i);
+                    let opr_act = llb::operand_rw(operand_i);
 
                     let value = match opr_type {
                         llb::xed_operand_type_enum_t::XED_OPERAND_TYPE_NT_LOOKUP_FN => {
-                            llb::nonterminal_str(llb::xed_operand_nonterminal_name(operand_i))
+                            llb::nonterminal_str(llb::operand_nonterminal_name(operand_i))
                         }
 
                         llb::xed_operand_type_enum_t::XED_OPERAND_TYPE_REG => {
-                            llb::reg_str(llb::xed_operand_reg(operand_i))
+                            llb::reg_str(llb::operand_reg(operand_i))
                         }
 
                         _ => "unknown",
